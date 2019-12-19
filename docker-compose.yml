@@ -1,0 +1,89 @@
+version: "3"
+services:
+  work:
+    container_name: Tenshoku
+    build: work/
+    command: yarn dev
+    volumes:
+      - ./work:/app
+    ports:
+      - '3000:3000'
+
+  api:
+    build: docker/api/
+    depends_on:
+      - db
+    container_name: ex_api
+    ports:
+      - 5000:5000
+    volumes:
+      - ./docker/api/src:/src
+
+  db:
+    build: docker/db
+    environment:
+      MYSQL_USER: root
+      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
+      MYSQL_DATABASE: mydb
+    container_name: db_mysql
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      # mysqlだとdataフォルダをvolumesに入れるとバグる
+      - ./docker/db/data:/var/lib/mysql
+      - ./docker/db/cnf:/etc/mysql/conf.d
+      - ./docker/db/sql:/docker-entrypoint-initdb.d
+    ports:
+      - 3306:3306
+
+  data:
+    image: tianon/true
+    volumes:
+      - /var/lib/postgresql/data
+      - /usr/local/taiga/media
+      - /usr/local/taiga/static
+      - /usr/local/taiga/logs
+
+  taiga-db:
+    image: postgres
+    environment:
+      POSTGRES_USER: taiga
+      POSTGRES_PASSWORD: password
+    volumes_from:
+      - data
+    volumes:
+      - doc_root:/
+    restart: always
+
+  taigaback:
+    image: htdvisser/taiga-back:stable
+    hostname: tenshoku
+    environment:
+      SECRET_KEY: examplesecretkey
+      EMAIL_USE_TLS: 'True'
+      EMAIL_HOST: revos347@gmail.com
+      EMAIL_PORT: 587
+      EMAIL_HOST_USER: revos348@gmail.com
+      EMAIL_HOST_PASSWORD: password
+    links:
+      - taiga-db:postgres
+    volumes_from:
+      - data
+    restart: always
+
+  taigafront:
+    image: htdvisser/taiga-front-dist:stable
+    hostname: tenshoku
+    links:
+      - taigaback
+    volumes_from:
+      - data
+    ports:
+      - 0.0.0.0:80:80
+    restart: always
+
+  volumes:
+    doc_root:
+      driver_opts:
+        type: none
+        decive: /path/to/host
+        o: bind
